@@ -95,7 +95,7 @@ always @(posedge clk)
          IDLE : begin
             if (macro_states_valid && macro_states == FlashRdID)
                states <= LdRdID;
-            else if(macro_states_valid && macro_states == FlashWrPg)
+            else if(macro_states_valid && (macro_states == FlashWrPg || macro_states == FlashERS4kB))
                states <= LdWENA;
             else if(macro_states_valid && macro_states == FlashRdPg)
                states <= LdRdPg;
