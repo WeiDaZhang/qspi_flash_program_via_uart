@@ -299,6 +299,8 @@ always @(posedge clk)
                states <= WtERs4kBSec;
             else if(flash_macro_states_done && sec4kB_len_cnt == 1)
                states <= SetReadFl;
+            else if(flash_macro_states_done)
+               states <= ERS4kBSec;
 
             macro_states_valid = 0;
             if(flash_macro_states_done)
