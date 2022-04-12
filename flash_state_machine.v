@@ -30,22 +30,23 @@ module flash_state_machine
 	input					fetch_empty_in
 );
 
-parameter IDLE      = 4'b0000;
-parameter LdRdFSR   = 4'b0001;      //Load Read Flag Statue Register
-parameter LdRdSR    = 4'b0010;      //Load Read Statue Register
-parameter WtRdSR    = 4'b0011;      //Wait Read Statue Register
-parameter FetchSR   = 4'b0100;      //Fetch Statue Register
-parameter CkBsySR   = 4'b0101;      //Check Busy Statue Register
-parameter LdRdID    = 4'b0110;
-parameter LdRdPg    = 4'b0111;		//Load Read Page of 256-Byte
-parameter LdWENA    = 4'b1000;		//Load Write Enable CMD
-parameter LdWDIS    = 4'b1001;		//Load Write Disable CMD
-parameter LdWrPg    = 4'b1010;		//Load Write Page
-parameter WtWENA    = 4'b1011;
-parameter WtWrPg    = 4'b1100;
-parameter RdFIFO    = 4'b1101;
-parameter Done      = 4'b1110;
-parameter TBD0      = 4'b1111;
+parameter IDLE      = 5'b00000;
+parameter LdRdFSR   = 5'b00001;      //Load Read Flag Statue Register
+parameter LdRdSR    = 5'b00010;      //Load Read Statue Register
+parameter WtRdSR    = 5'b00011;      //Wait Read Statue Register
+parameter FetchSR   = 5'b00100;      //Fetch Statue Register
+parameter CkBsySR   = 5'b00101;      //Check Busy Statue Register
+parameter LdRdID    = 5'b00110;
+parameter LdRdPg    = 5'b00111;		//Load Read Page of 256-Byte
+parameter LdWENA    = 5'b01000;		//Load Write Enable CMD
+parameter LdWDIS    = 5'b01001;		//Load Write Disable CMD
+parameter LdWrPg    = 5'b01010;		//Load Write Page
+parameter WtWENA    = 5'b01011;
+parameter WtWrPg    = 5'b01100;
+parameter RdFIFO    = 5'b01101;
+parameter Done      = 5'b01110;
+parameter LdErs4kB  = 5'b01111;
+parameter WtErs4kB  = 5'b10000;
 
 //macro_states
 parameter SetUARTMenu   = 4'h1;
@@ -136,8 +137,10 @@ always @(posedge clk)
                states <= WtWENA;
             else if(load_out)
                states <= WtWENA;
-            else
+            else if(macro_states_reg == FlashWrPg)
                states <= RdFIFO;
+            else if(macro_states_reg == FlashERS4kB)
+                states <= LdErs4kB;
 
             load_out = 0;
          end
@@ -148,6 +151,34 @@ always @(posedge clk)
                states <= RdFIFO;
 
             buff_rden = 1;
+            load_out = 0;
+         end
+         LdErs4kB : begin
+            if(1)
+			   states <= WtErs4kB;
+            else
+               states <= LdErs4kB;
+
+            state_busy = 1;
+            load_out = 1;
+            command_len_out = 8;
+            addr_len_out = 32;
+            dummy_len_out = 0;
+            data_len_out = 0;
+            command_out = 8'h21;	//4-BYTE 4KB SUBSECTOR ERASE 
+            addr_out = addr_in_reg;
+            data_out = data_in;
+            tristate_out = 0;
+            fetch_out = 0;
+         end
+         WtErs4kB : begin
+            if (spi_busy_in)
+               states <= WtErs4kB;
+            else if(load_out)
+               states <= WtErs4kB;
+            else
+               states <= LdRdSR;
+
             load_out = 0;
          end
          LdWrPg : begin
