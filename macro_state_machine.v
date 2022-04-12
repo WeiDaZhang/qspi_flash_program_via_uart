@@ -301,8 +301,11 @@ always @(posedge clk)
                states <= SetReadFl;
 
             macro_states_valid = 0;
-            addr_reg = addr_reg + Sect4kBCnt;
-            sec4kB_len_cnt = sec4kB_len_cnt - 1;
+            if(flash_macro_states_done)
+            begin
+                addr_reg = addr_reg + Sect4kBCnt;
+                sec4kB_len_cnt = sec4kB_len_cnt - 1;
+            end
          end
          SetReadFl : begin
             if (0)
