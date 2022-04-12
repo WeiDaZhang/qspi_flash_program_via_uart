@@ -141,8 +141,12 @@ always @(posedge clk)
                     end
                 endcase
             end
-            macro_states_done = 0;
-            rx_num_reg = 0;
+            else
+            begin
+                macro_states_done = 0;
+                rx_num_reg = 0;
+                macro_states_busy = 0;
+            end
          end
          LdMenu : begin
             if (0)
@@ -208,9 +212,13 @@ always @(posedge clk)
             o_Tx_DV = 0;
          end
          NxChar : begin
-            if(msg_char_cnt == 1 && (macro_states_reg < 5 || macro_states_reg == 6))
+            if(msg_char_cnt == 1 && (macro_states_reg == SetUARTMenu ||
+                                     macro_states_reg == SetUARTAddr ||
+                                     macro_states_reg == SetUARTData ||
+                                     macro_states_reg == SendUARTNewLn ||
+                                     macro_states_reg == SetUARTRdFl))
                states <= TxRxEnd;
-            else if(msg_char_cnt == 1 && macro_states_reg == 5)
+            else if(msg_char_cnt == 1 && macro_states_reg == WaitUARTMsg)
                states <= RxNum;
             else
                states <= SdChar;

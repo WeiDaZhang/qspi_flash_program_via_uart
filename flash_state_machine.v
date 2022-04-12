@@ -108,11 +108,30 @@ always @(posedge clk)
 
             if(macro_states_valid)
             begin
-                macro_states_reg = macro_states;
-                addr_in_reg = addr_in[31:0];
+                case (macro_states)
+                    FlashRdID,
+                    FlashWrPg,
+                    FlashERS4kB,
+                    FlashRdPg,
+                    FlashRdSR,
+                    FlashRdFR :
+                    begin
+                        macro_states_reg = macro_states;
+                        state_busy = 1;
+                        addr_in_reg = addr_in[31:0];
+                    end
+                    default :
+                    begin
+                        macro_states_done = 0;
+                        state_busy = 0;
+                    end
+                endcase
             end
-            state_busy = 1;
-            macro_states_done = 0;
+            else
+            begin
+                macro_states_done = 0;
+                state_busy = 0;
+            end
          end
          LdWENA : begin
             if (1)
