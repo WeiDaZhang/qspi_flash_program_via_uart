@@ -280,8 +280,8 @@ always @(posedge clk)
             else
                states <= ERS4kBSec;
 
-            sec4kB_len_reg = data_len_reg >> 10 + 1;
-            sec4kB_len_cnt = data_len_reg >> 10 + 1;
+            sec4kB_len_reg = (data_len_reg >> 10) + 1;
+            sec4kB_len_cnt = (data_len_reg >> 10) + 1;
          end
          ERS4kBSec : begin
             if (0)
