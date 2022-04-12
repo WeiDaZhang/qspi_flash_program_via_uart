@@ -56,6 +56,7 @@ parameter WaitUARTMsg   = 4'h5;
 parameter SetUARTRdFl   = 4'h6;
 parameter BuffUART      = 4'h7;
 
+parameter FlashERS4kB   = 4'hA;
 parameter FlashRdID     = 4'hB;
 parameter FlashWrPg     = 4'hC;
 parameter FlashRdPg     = 4'hD;

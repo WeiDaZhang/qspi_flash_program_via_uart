@@ -17,6 +17,9 @@ module macro_state_machine
 );
 
 reg [31:0]       data_len_reg;
+reg [23:0]       sec4kB_len_reg;
+reg [23:0]       sec4kB_len_cnt;
+reg [31:0]       start_addr_reg;
 
 parameter IDLE       = 5'b00000;
 parameter SetMenu    = 5'b00110;
@@ -43,6 +46,9 @@ parameter Qst4kFl    = 5'b10101;
 parameter WtQ4kFlEnd = 5'b10110;
 parameter SetFlashWrPg = 5'b10111;
 parameter WtFshPgEnd = 5'b11000;
+parameter Calc4kBSec = 5'b11001;
+parameter ERS4kBSec  = 5'b11010;
+parameter WtERs4kBSec = 5'b11011; 
 
 //macro_states
 parameter SetUARTMenu   = 4'h1;
@@ -53,6 +59,7 @@ parameter WaitUARTMsg   = 4'h5;
 parameter SetUARTRdFl   = 4'h6;
 parameter BuffUART      = 4'h7;
 
+parameter FlashERS4kB   = 4'hA;
 parameter FlashRdID     = 4'hB;
 parameter FlashWrPg     = 4'hC;
 parameter FlashRdPg     = 4'hD;
@@ -61,8 +68,8 @@ parameter FlashRdFR     = 4'hF;
 
 //Flash
 parameter PgByteCnt         = 256;
-parameter PkgByteCnt        = 4096;
-parameter MaxPgCnt          = 16;   //PkgByteCnt/PgByteCnt;
+parameter Sect4kBCnt        = 4096;
+parameter MaxPgCnt          = 16;   //Sect4kBCnt/PgByteCnt;
 
 reg [31:0]  rx_num_reg;
 reg [31:0]  pg_cnt;
@@ -204,6 +211,7 @@ always @(posedge clk)
                states <= SetDatLen;
 
             addr_reg = rx_num_reg;
+            start_addr_reg = rx_num_reg;
             macro_states_valid = 0;
          end
          SetDatLen : begin
@@ -261,10 +269,40 @@ always @(posedge clk)
             else if (~uart_macro_states_done)
                states <= WtSDaLnEnd;
             else if(uart_macro_states_done)
-               states <= SetReadFl;
+               states <= Calc4kBSec;
 
             data_len_reg = rx_num_reg;
             macro_states_valid = 0;
+         end
+         Calc4kBSec : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= ERS4kBSec;
+
+            sec4kB_len_reg = data_len_reg >> 10 + 1;
+            sec4kB_len_cnt = data_len_reg >> 10 + 1;
+         end
+         ERS4kBSec : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtERs4kBSec;
+
+            macro_states = FlashERS4kB;
+            macro_states_valid = 1;
+         end
+         WtERs4kBSec : begin
+            if (macro_states_valid)
+               states <= WtERs4kBSec;
+            else if (~flash_macro_states_done)
+               states <= WtERs4kBSec;
+            else if(flash_macro_states_done && sec4kB_len_cnt == 1)
+               states <= SetReadFl;
+
+            macro_states_valid = 0;
+            addr_reg = addr_reg + Sect4kBCnt;
+            sec4kB_len_cnt = sec4kB_len_cnt - 1;
          end
          SetReadFl : begin
             if (0)
@@ -293,7 +331,8 @@ always @(posedge clk)
 
             macro_states = BuffUART;
             macro_states_valid = 1;
-            rx_cnt = PkgByteCnt;
+            rx_cnt = Sect4kBCnt;
+            addr_reg = start_addr_reg;
          end
          WtQ4kFlEnd : begin
             if (macro_states_valid)
