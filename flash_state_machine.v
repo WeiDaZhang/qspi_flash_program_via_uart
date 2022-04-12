@@ -69,7 +69,7 @@ reg [3:0]   macro_states_reg;
 reg [31:0]  addr_in_reg;
 reg [5:0]   data_cnt;
 
-reg [3:0]   states = IDLE;
+reg [4:0]   states = IDLE;
 
 
 always @(posedge clk)
