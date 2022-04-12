@@ -1,0 +1,334 @@
+`timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
+module macro_state_machine
+(
+    input                   clk,             	// Clock signal
+    input                   rst,            	// Active-high, synchronous reset
+    input                   start,
+    output reg [3:0]        macro_states,
+    output reg              macro_states_valid,
+    input                   uart_macro_states_done,
+    input                   flash_macro_states_done,
+    input                   buff_prog_empty,
+    input [31:0]            rx_num,
+    output reg [15:0]       rx_cnt,
+    output reg [31:0]       addr_reg
+);
+
+reg [31:0]       data_len_reg;
+
+parameter IDLE       = 5'b00000;
+parameter SetMenu    = 5'b00110;
+parameter WtSMUEnd   = 5'b00001;
+parameter QstMenu    = 5'b01001;
+parameter WtQMuEnd   = 5'b00100;
+parameter SetQMLn    = 5'b01010;
+parameter WtSQMLnEnd = 5'b00101;
+parameter SetAddr    = 5'b01101;
+parameter WtSAddrEnd = 5'b01011;
+parameter QstAddr    = 5'b00111;
+parameter WtQAddrEnd = 5'b00010;
+parameter SAddrLn    = 5'b01110;
+parameter WtSADLnEnd = 5'b01111;
+parameter SetDatLen  = 5'b01100;
+parameter WtSDataEnd = 5'b10000;
+parameter QstLen     = 5'b01000;
+parameter WtQLenEnd  = 5'b00011;
+parameter SDataLn    = 5'b10001;
+parameter WtSDaLnEnd = 5'b10010;
+parameter SetReadFl  = 5'b10011;
+parameter WtSRdFlEnd = 5'b10100;
+parameter Qst4kFl    = 5'b10101;
+parameter WtQ4kFlEnd = 5'b10110;
+parameter SetFlashWrPg = 5'b10111;
+parameter WtFshPgEnd = 5'b11000;
+
+//macro_states
+parameter SetUARTMenu   = 4'h1;
+parameter SetUARTAddr   = 4'h2;
+parameter SetUARTData   = 4'h3;
+parameter SendUARTNewLn = 4'h4;
+parameter WaitUARTMsg   = 4'h5;
+parameter SetUARTRdFl   = 4'h6;
+parameter BuffUART      = 4'h7;
+
+parameter FlashRdID     = 4'hB;
+parameter FlashWrPg     = 4'hC;
+parameter FlashRdPg     = 4'hD;
+parameter FlashRdSR     = 4'hE;
+parameter FlashRdFR     = 4'hF;
+
+//Flash
+parameter PgByteCnt         = 256;
+parameter PkgByteCnt        = 4096;
+parameter MaxPgCnt          = 16;   //PkgByteCnt/PgByteCnt;
+
+reg [31:0]  rx_num_reg;
+reg [31:0]  pg_cnt;
+
+reg [4:0]   states;
+always @(posedge clk)
+   if (rst) begin
+      states <= IDLE;
+
+      macro_states = 0;
+      macro_states_valid = 0;
+      rx_num_reg = 0;
+      pg_cnt = 0;
+   end
+   else
+      case (states)
+         IDLE : begin
+            if (start == 1)
+               states <= SetMenu;
+            else
+               states <= IDLE;
+         end
+         SetMenu : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSMUEnd;
+
+            macro_states = SetUARTMenu;
+            macro_states_valid = 1;
+         end
+         WtSMUEnd : begin
+            if (macro_states_valid)
+               states <= WtSMUEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSMUEnd;
+            else if(uart_macro_states_done)
+               states <= QstMenu;
+
+            macro_states_valid = 0;
+         end
+         QstMenu : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtQMuEnd;
+
+            macro_states = WaitUARTMsg;
+            macro_states_valid = 1;
+         end
+         WtQMuEnd : begin
+            if (macro_states_valid)
+               states <= WtQMuEnd;
+            else if (~uart_macro_states_done)
+               states <= WtQMuEnd;
+            else if(uart_macro_states_done)
+               states <= SetQMLn;
+
+            macro_states_valid = 0;
+            if(uart_macro_states_done)
+                rx_num_reg = rx_num;
+         end
+         SetQMLn : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSQMLnEnd;
+
+            macro_states = SendUARTNewLn;
+            macro_states_valid = 1;
+         end
+         WtSQMLnEnd : begin
+            if (macro_states_valid)
+               states <= WtSQMLnEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSQMLnEnd;
+            else if(uart_macro_states_done && rx_num_reg[7:0] == 4)
+               states <= SetAddr;
+            else if(uart_macro_states_done)
+               states <= SetMenu;
+
+            macro_states_valid = 0;
+         end
+         SetAddr : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSAddrEnd;
+
+            macro_states = SetUARTAddr;
+            macro_states_valid = 1;
+         end
+         WtSAddrEnd : begin
+            if (macro_states_valid)
+               states <= WtSAddrEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSAddrEnd;
+            else if(uart_macro_states_done)
+               states <= QstAddr;
+
+            macro_states_valid = 0;
+         end
+         QstAddr : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtQAddrEnd;
+
+            macro_states = WaitUARTMsg;
+            macro_states_valid = 1;
+         end
+         WtQAddrEnd : begin
+            if (macro_states_valid)
+               states <= WtQAddrEnd;
+            else if (~uart_macro_states_done)
+               states <= WtQAddrEnd;
+            else if(uart_macro_states_done)
+               states <= SAddrLn;
+
+            macro_states_valid = 0;
+            if(uart_macro_states_done)
+                rx_num_reg = rx_num;
+         end
+         SAddrLn : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSADLnEnd;
+
+            macro_states = SendUARTNewLn;
+            macro_states_valid = 1;
+         end
+         WtSADLnEnd : begin
+            if (macro_states_valid)
+               states <= WtSADLnEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSADLnEnd;
+            else if(uart_macro_states_done)
+               states <= SetDatLen;
+
+            addr_reg = rx_num_reg;
+            macro_states_valid = 0;
+         end
+         SetDatLen : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSDataEnd;
+
+            macro_states = SetUARTData;
+            macro_states_valid = 1;
+         end
+         WtSDataEnd : begin
+            if (macro_states_valid)
+               states <= WtSDataEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSDataEnd;
+            else if(uart_macro_states_done)
+               states <= QstLen;
+
+            macro_states_valid = 0;
+         end
+         QstLen : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtQLenEnd;
+
+            macro_states = WaitUARTMsg;
+            macro_states_valid = 1;
+         end
+         WtQLenEnd : begin
+            if (macro_states_valid)
+               states <= WtQLenEnd;
+            else if (~uart_macro_states_done)
+               states <= WtQLenEnd;
+            else if(uart_macro_states_done)
+               states <= SDataLn;
+
+            macro_states_valid = 0;
+            if(uart_macro_states_done)
+                rx_num_reg = rx_num;
+         end
+         SDataLn : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSDaLnEnd;
+
+            macro_states = SendUARTNewLn;
+            macro_states_valid = 1;
+         end
+         WtSDaLnEnd : begin
+            if (macro_states_valid)
+               states <= WtSDaLnEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSDaLnEnd;
+            else if(uart_macro_states_done)
+               states <= SetReadFl;
+
+            data_len_reg = rx_num_reg;
+            macro_states_valid = 0;
+         end
+         SetReadFl : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSRdFlEnd;
+
+            macro_states = SetUARTRdFl;
+            macro_states_valid = 1;
+         end
+         WtSRdFlEnd : begin
+            if (macro_states_valid)
+               states <= WtSRdFlEnd;
+            else if (~uart_macro_states_done)
+               states <= WtSRdFlEnd;
+            else if(uart_macro_states_done)
+               states <= Qst4kFl;
+
+            macro_states_valid = 0;
+         end
+         Qst4kFl : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtQ4kFlEnd;
+
+            macro_states = BuffUART;
+            macro_states_valid = 1;
+            rx_cnt = PkgByteCnt;
+         end
+         WtQ4kFlEnd : begin
+            if (macro_states_valid)
+               states <= WtQ4kFlEnd;
+            else if(~buff_prog_empty)
+                states = SetFlashWrPg;
+
+            macro_states_valid = 0;
+         end
+         SetFlashWrPg : begin
+            if (0)
+               states <= SetFlashWrPg;
+            else
+                states = WtFshPgEnd;
+
+            macro_states = FlashWrPg;
+            macro_states_valid = 1;
+         end
+         WtFshPgEnd : begin
+            if (macro_states_valid)
+               states <= WtFshPgEnd;
+            else if(flash_macro_states_done)    //&& (pg_cnt < MaxPgCnt))
+                states = WtQ4kFlEnd;
+            /*else if(flash_macro_states_done)
+                states = IDLE;*/
+
+            macro_states_valid = 0;
+            if(flash_macro_states_done)
+                addr_reg = addr_reg + PgByteCnt;
+                pg_cnt = pg_cnt + 1;
+         end
+         default : begin  // Fault Recovery
+            states <= IDLE;
+
+         end
+      endcase
+
+endmodule 
