@@ -59,6 +59,22 @@ parameter RxFile    = 4'b1101;
 parameter TBD9      = 4'b1110;
 parameter TBD0      = 4'b1111;
 
+//macro_states
+parameter SetUARTMenu   = 4'h1;
+parameter SetUARTAddr   = 4'h2;
+parameter SetUARTData   = 4'h3;
+parameter SendUARTNewLn = 4'h4;
+parameter WaitUARTMsg   = 4'h5;
+parameter SetUARTRdFl   = 4'h6;
+parameter BuffUART      = 4'h7;
+
+parameter FlashERS4kB   = 4'hA;
+parameter FlashRdID     = 4'hB;
+parameter FlashWrPg     = 4'hC;
+parameter FlashRdPg     = 4'hD;
+parameter FlashRdSR     = 4'hE;
+parameter FlashRdFR     = 4'hF;
+
 reg [max_byte_num*8-1:0]        msg_text;
 reg [7:0]                       msg_char_cnt;
 
@@ -87,28 +103,43 @@ always @(posedge clk)
    else
       case (states)
          IDLE : begin
-            if (macro_states_reg == 1)
+            if (macro_states_valid && macro_states == SetUARTMenu)
                states <= LdMenu;
-            else if(macro_states_reg == 2)
+            else if(macro_states_valid && macro_states == SetUARTAddr)
                states <= QstAddr;
-            else if(macro_states_reg == 3)
+            else if(macro_states_valid && macro_states == SetUARTData)
                states <= QstDatLen;
-            else if(macro_states_reg == 4)
+            else if(macro_states_valid && macro_states == SendUARTNewLn)
                states <= LdCRLF;
-            else if(macro_states_reg == 5)
+            else if(macro_states_valid && macro_states == WaitUARTMsg)
                states <= RxNum;
-            else if(macro_states_reg == 6)
+            else if(macro_states_valid && macro_states == SetUARTRdFl)
                states <= QstFile;
-            else if(macro_states_reg == 7)
+            else if(macro_states_valid && macro_states == BuffUART)
                states <= RxFile;
             else
                states <= IDLE;
 
-            if(macro_states_valid && ~macro_states_busy)
+            if(macro_states_valid)
             begin
-                macro_states_reg = macro_states;
-                macro_states_busy = 1;
-                rx_cnt_reg = rx_cnt;
+                case (macro_states)
+                    SetUARTMenu,
+                    SetUARTAddr,
+                    SetUARTData,
+                    SendUARTNewLn,
+                    WaitUARTMsg,
+                    SetUARTRdFl,
+                    BuffUART :
+                    begin
+                        macro_states_reg = macro_states;
+                        macro_states_busy = 1;
+                        rx_cnt_reg = rx_cnt;
+                    end
+                    default :
+                    begin
+                        macro_states_busy = 0;
+                    end
+                endcase
             end
             macro_states_done = 0;
             rx_num_reg = 0;
