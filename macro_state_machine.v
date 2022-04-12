@@ -67,12 +67,14 @@ parameter FlashRdSR     = 4'hE;
 parameter FlashRdFR     = 4'hF;
 
 //Flash
-parameter PgByteCnt         = 256;
-parameter Sect4kBCnt        = 4096;
-parameter MaxPgCnt          = 16;   //Sect4kBCnt/PgByteCnt;
+parameter PgByteWidth       = 8;
+parameter PgByteCnt         = 2**PgByteWidth;
+parameter Sect4kBWidth      = 12;
+parameter Sect4kBCnt        = 2**Sect4kBWidth;
 
 reg [31:0]  rx_num_reg;
 reg [31:0]  pg_cnt;
+reg         SecRcvAck;
 
 reg [4:0]   states;
 always @(posedge clk)
@@ -83,6 +85,7 @@ always @(posedge clk)
       macro_states_valid = 0;
       rx_num_reg = 0;
       pg_cnt = 0;
+      SecRcvAck = 0;
    end
    else
       case (states)
@@ -280,8 +283,8 @@ always @(posedge clk)
             else
                states <= ERS4kBSec;
 
-            sec4kB_len_reg = (data_len_reg >> 10) + 1;
-            sec4kB_len_cnt = (data_len_reg >> 10) + 1;
+            sec4kB_len_reg = (data_len_reg >> Sect4kBWidth) | 24'b1;
+            sec4kB_len_cnt = (data_len_reg >> Sect4kBWidth) | 24'b1;
          end
          ERS4kBSec : begin
             if (0)
@@ -345,6 +348,8 @@ always @(posedge clk)
             else if(~buff_prog_empty)
                 states = SetFlashWrPg;
 
+            if(uart_macro_states_done)
+                SecRcvAck = 1;
             macro_states_valid = 0;
          end
          SetFlashWrPg : begin
@@ -353,21 +358,23 @@ always @(posedge clk)
             else
                 states = WtFshPgEnd;
 
+            if(uart_macro_states_done)
+                SecRcvAck = 1;
             macro_states = FlashWrPg;
             macro_states_valid = 1;
          end
          WtFshPgEnd : begin
             if (macro_states_valid)
                states <= WtFshPgEnd;
-            else if(flash_macro_states_done)    //&& (pg_cnt < MaxPgCnt))
+            else if(flash_macro_states_done)
                 states = WtQ4kFlEnd;
-            /*else if(flash_macro_states_done)
-                states = IDLE;*/
 
             macro_states_valid = 0;
             if(flash_macro_states_done)
                 addr_reg = addr_reg + PgByteCnt;
                 pg_cnt = pg_cnt + 1;
+            if(uart_macro_states_done)
+                SecRcvAck = 1;
          end
          default : begin  // Fault Recovery
             states <= IDLE;
