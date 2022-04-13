@@ -13,7 +13,8 @@ module macro_state_machine
     input                   buff_prog_empty,
     input [31:0]            rx_num,
     output reg [15:0]       rx_cnt,
-    output reg [31:0]       addr_reg
+    output reg [31:0]       addr_reg,
+    output                  pg_cnt
 );
 
 reg [31:0]       data_len_reg;
@@ -48,7 +49,9 @@ parameter SetFlashWrPg = 5'b10111;
 parameter WtFshPgEnd = 5'b11000;
 parameter Calc4kBSec = 5'b11001;
 parameter ERS4kBSec  = 5'b11010;
-parameter WtERs4kBSec = 5'b11011; 
+parameter WtERs4kBSec = 5'b11011;
+parameter SetAck      = 5'b11100;
+parameter WtSSetAck   = 5'b11101;
 
 //macro_states
 parameter SetUARTMenu   = 4'h1;
@@ -58,6 +61,7 @@ parameter SendUARTNewLn = 4'h4;
 parameter WaitUARTMsg   = 4'h5;
 parameter SetUARTRdFl   = 4'h6;
 parameter BuffUART      = 4'h7;
+parameter SetUARTAck    = 4'h8;
 
 parameter FlashERS4kB   = 4'hA;
 parameter FlashRdID     = 4'hB;
@@ -341,15 +345,23 @@ always @(posedge clk)
             macro_states_valid = 1;
             rx_cnt = Sect4kBCnt;
             addr_reg = start_addr_reg;
+            pg_cnt = 32'h1 << (Sect4kBWidth - PgByteWidth);
+            sec4kB_len_cnt = sec4kB_len_reg;
+            SecRcvAck = 0;
          end
          WtQ4kFlEnd : begin
             if (macro_states_valid)
                states <= WtQ4kFlEnd;
             else if(~buff_prog_empty)
                 states = SetFlashWrPg;
+            else if(pg_cnt == 1 && SecRcvAck)
+                states = SetAck;
 
             if(uart_macro_states_done)
+            begin
                 SecRcvAck = 1;
+                sec4kB_len_cnt = sec4kB_len_cnt - 1;
+            end
             macro_states_valid = 0;
          end
          SetFlashWrPg : begin
@@ -359,7 +371,10 @@ always @(posedge clk)
                 states = WtFshPgEnd;
 
             if(uart_macro_states_done)
+            begin
                 SecRcvAck = 1;
+                sec4kB_len_cnt = sec4kB_len_cnt - 1;
+            end
             macro_states = FlashWrPg;
             macro_states_valid = 1;
          end
@@ -371,10 +386,37 @@ always @(posedge clk)
 
             macro_states_valid = 0;
             if(flash_macro_states_done)
+            begin
                 addr_reg = addr_reg + PgByteCnt;
-                pg_cnt = pg_cnt + 1;
+                pg_cnt = pg_cnt - 1;
+            end
             if(uart_macro_states_done)
+            begin
                 SecRcvAck = 1;
+                sec4kB_len_cnt = sec4kB_len_cnt - 1;
+            end
+         end
+         SetAck : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= WtSSetAck;
+
+            macro_states = SetUARTAck;
+            macro_states_valid = 1;
+            rx_cnt = sec4kB_len_cnt;
+         end
+         WtSSetAck : begin
+            if (macro_states_valid)
+               states <= WtSSetAck;
+            else if (~uart_macro_states_done)
+               states <= WtSSetAck;
+            else if(uart_macro_states_done && sec4kB_len_cnt == 1)
+               states <= IDLE;
+            else if(uart_macro_states_done)
+               states <= Qst4kFl;
+
+            macro_states_valid = 0;
          end
          default : begin  // Fault Recovery
             states <= IDLE;

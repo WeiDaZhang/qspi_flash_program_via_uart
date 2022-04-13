@@ -42,22 +42,29 @@ parameter quest_file_text_cnt = 38;
 parameter CRLF = {8'd13, 8'd10};
 parameter CRLF_cnt = 2;
 
-parameter IDLE      = 4'b0000;
-parameter LdMenu    = 4'b0001;
-parameter SdChar    = 4'b0010;
-parameter CkBsyChar = 4'b0011;
-parameter NxChar    = 4'b0100;
-parameter QstAddr   = 4'b0101;
-parameter QstDatLen = 4'b0110;
-parameter RxNum     = 4'b0111;
-parameter CkNum     = 4'b1000;
-parameter RxEnd     = 4'b1001;
-parameter LdCRLF    = 4'b1010;
-parameter TxRxEnd   = 4'b1011;
-parameter QstFile   = 4'b1100;
-parameter RxFile    = 4'b1101;
-parameter TBD9      = 4'b1110;
-parameter TBD0      = 4'b1111;
+parameter rcv_ack_text = {8'd78, 8'd117, 8'd109, 8'd98, 8'd101, 8'd114, 8'd32, 8'd111, 8'd102, 8'd32, 8'd52, 8'd107, 8'd66, 8'd121, 8'd116,
+8'd101, 8'd32, 8'd80, 8'd97, 8'd99, 8'd107, 8'd97, 8'd103, 8'd101, 8'd115, 8'd32, 8'd76, 8'd101, 8'd102, 8'd116, 8'd58};
+parameter rcv_ack_cnt = 31;
+
+parameter IDLE      = 5'b00000;
+parameter LdMenu    = 5'b00001;
+parameter SdChar    = 5'b00010;
+parameter CkBsyChar = 5'b00011;
+parameter NxChar    = 5'b00100;
+parameter QstAddr   = 5'b00101;
+parameter QstDatLen = 5'b00110;
+parameter RxNum     = 5'b00111;
+parameter CkNum     = 5'b01000;
+parameter RxEnd     = 5'b01001;
+parameter LdCRLF    = 5'b01010;
+parameter TxRxEnd   = 5'b01011;
+parameter QstFile   = 5'b01100;
+parameter RxFile    = 5'b01101;
+parameter LdRcvAck  = 5'b01110;
+parameter StartBCD  = 5'b01111;
+parameter WtBCD     = 5'b10000;
+parameter BCD2ASCII = 5'b10001;
+parameter LdBCD     = 5'b10010;
 
 //macro_states
 parameter SetUARTMenu   = 4'h1;
@@ -67,6 +74,7 @@ parameter SendUARTNewLn = 4'h4;
 parameter WaitUARTMsg   = 4'h5;
 parameter SetUARTRdFl   = 4'h6;
 parameter BuffUART      = 4'h7;
+parameter SetUARTAck    = 4'h8;
 
 parameter FlashERS4kB   = 4'hA;
 parameter FlashRdID     = 4'hB;
@@ -78,13 +86,19 @@ parameter FlashRdFR     = 4'hF;
 reg [max_byte_num*8-1:0]        msg_text;
 reg [7:0]                       msg_char_cnt;
 
-reg [3:0]   states;
+reg [4:0]   states;
 
 reg [3:0]   macro_states_reg;
 reg         macro_states_busy;
 
 reg [7:0]   rx_byte_reg;
 reg [15:0]  rx_cnt_reg;
+reg         bcd_start;
+reg [19:0]  bcd_reg;
+wire [19:0]   o_bcd;
+wire        bcd_dv;
+reg [39:0]  bcd_text;
+
 
 assign o_Tx_Byte = msg_text[(max_byte_num*8-1) : (max_byte_num*8-8)];
 
@@ -99,6 +113,9 @@ always @(posedge clk)
       rx_num_reg = 0;
       rx_cnt_reg = 0;
       buff_wren = 0;
+      bcd_start = 0;
+      bcd_text = 0;
+      bcd_reg = 0;
    end
    else
       case (states)
@@ -117,6 +134,8 @@ always @(posedge clk)
                states <= QstFile;
             else if(macro_states_valid && macro_states == BuffUART)
                states <= RxFile;
+            else if(macro_states_valid && macro_states == SetUARTAck)
+               states <= LdCRLF;
             else
                states <= IDLE;
 
@@ -129,7 +148,8 @@ always @(posedge clk)
                     SendUARTNewLn,
                     WaitUARTMsg,
                     SetUARTRdFl,
-                    BuffUART :
+                    BuffUART,
+                    SetUARTAck :
                     begin
                         macro_states_reg = macro_states;
                         macro_states_busy = 1;
@@ -146,6 +166,9 @@ always @(posedge clk)
                 macro_states_done = 0;
                 rx_num_reg = 0;
                 macro_states_busy = 0;
+                bcd_start = 0;
+                bcd_text = 0;
+                bcd_reg = 0;
             end
          end
          LdMenu : begin
@@ -193,6 +216,15 @@ always @(posedge clk)
             msg_text = {CRLF, {(max_byte_num - CRLF_cnt){8'hFF}}};
             msg_char_cnt = CRLF_cnt;
          end
+         LdRcvAck : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= SdChar;
+
+            msg_text = {rcv_ack_text, {(max_byte_num - rcv_ack_cnt){8'hFF}}};
+            msg_char_cnt = rcv_ack_cnt;
+         end
          SdChar : begin
             if (0)
                states <= IDLE;
@@ -220,6 +252,12 @@ always @(posedge clk)
                states <= TxRxEnd;
             else if(msg_char_cnt == 1 && macro_states_reg == WaitUARTMsg)
                states <= RxNum;
+            else if(msg_char_cnt == 1 && macro_states_reg == SetUARTAck && |rx_cnt_reg)
+               states <= StartBCD;      // -> LdRcvAck;
+            else if(msg_char_cnt == 1 && macro_states_reg == SetUARTAck && bcd_text == 0)
+               states <= BCD2ASCII;     // -> LdBCD
+            else if(msg_char_cnt == 1 && macro_states_reg == SetUARTAck)
+               states <= TxRxEnd;
             else
                states <= SdChar;
 
@@ -380,9 +418,199 @@ always @(posedge clk)
                 rx_cnt_reg = rx_cnt_reg - 1;
             buff_wren = 1;
          end
-         default : begin  // Fault Recovery
+         StartBCD : begin
+            if(0)
+                states <= IDLE;
+            else
+                states <= WtBCD;
+
+            bcd_start = 1;
+            rx_cnt_reg = 0;
+         end
+         WtBCD : begin
+            if(bcd_dv)
+                states <= LdRcvAck;
+            else
+                states <= WtBCD;
+
+            bcd_reg = o_bcd;
+            bcd_start = 0;
+         end
+         BCD2ASCII : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= LdBCD;
+
+            bcd_text[7:0] = 8'd48 + bcd_reg[3:0];
+            bcd_text[15:8] = 8'd48 + bcd_reg[7:4];
+            bcd_text[23:16] = 8'd48 + bcd_reg[11:8];
+            bcd_text[31:24] = 8'd48 + bcd_reg[15:12];
+            bcd_text[39:32] = 8'd48 + bcd_reg[19:16];
+         end
+         LdBCD : begin
+            if (0)
+               states <= IDLE;
+            else
+               states <= SdChar;
+
+            msg_text = {bcd_text, {(max_byte_num - 5){8'hFF}}};
+            msg_char_cnt = 5;
+         end
+        default : begin  // Fault Recovery
             states <= IDLE;
 
          end
       endcase
-endmodule 
+
+Binary_to_BCD
+#(  .INPUT_WIDTH(16),
+    .DECIMAL_DIGITS(5)
+) Binary_to_BCD_inst
+(
+   .i_Clock(clk),             //input                         i_Clock,
+   .i_Binary(rx_cnt_reg),             //input [INPUT_WIDTH-1:0]       i_Binary,
+   .i_Start(bcd_start),          //input                         i_Start,
+   //
+   .o_BCD(o_bcd),            //output [DECIMAL_DIGITS*4-1:0] o_BCD,
+   .o_DV(bcd_dv)      //output                        o_DV
+);
+
+endmodule
+
+module Binary_to_BCD
+  #(parameter INPUT_WIDTH = 16,
+    parameter DECIMAL_DIGITS = 5)
+  (
+   input                         i_Clock,
+   input [INPUT_WIDTH-1:0]       i_Binary,
+   input                         i_Start,
+   //
+   output [DECIMAL_DIGITS*4-1:0] o_BCD,
+   output                        o_DV
+   );
+   
+  parameter s_IDLE              = 3'b000;
+  parameter s_SHIFT             = 3'b001;
+  parameter s_CHECK_SHIFT_INDEX = 3'b010;
+  parameter s_ADD               = 3'b011;
+  parameter s_CHECK_DIGIT_INDEX = 3'b100;
+  parameter s_BCD_DONE          = 3'b101;
+   
+  reg [2:0] r_SM_Main = s_IDLE;
+   
+  // The vector that contains the output BCD
+  reg [DECIMAL_DIGITS*4-1:0] r_BCD = 0;
+    
+  // The vector that contains the input binary value being shifted.
+  reg [INPUT_WIDTH-1:0]      r_Binary = 0;
+      
+  // Keeps track of which Decimal Digit we are indexing
+  reg [DECIMAL_DIGITS-1:0]   r_Digit_Index = 0;
+    
+  // Keeps track of which loop iteration we are on.
+  // Number of loops performed = INPUT_WIDTH
+  reg [7:0]                  r_Loop_Count = 0;
+ 
+  wire [3:0]                 w_BCD_Digit;
+  reg                        r_DV = 1'b0;                       
+    
+  always @(posedge i_Clock)
+    begin
+ 
+      case (r_SM_Main) 
+  
+        // Stay in this state until i_Start comes along
+        s_IDLE :
+          begin
+            r_DV <= 1'b0;
+             
+            if (i_Start == 1'b1)
+              begin
+                r_Binary  <= i_Binary;
+                r_SM_Main <= s_SHIFT;
+                r_BCD     <= 0;
+              end
+            else
+              r_SM_Main <= s_IDLE;
+          end
+                 
+  
+        // Always shift the BCD Vector until we have shifted all bits through
+        // Shift the most significant bit of r_Binary into r_BCD lowest bit.
+        s_SHIFT :
+          begin
+            r_BCD     <= r_BCD << 1;
+            r_BCD[0]  <= r_Binary[INPUT_WIDTH-1];
+            r_Binary  <= r_Binary << 1;
+            r_SM_Main <= s_CHECK_SHIFT_INDEX;
+          end          
+         
+  
+        // Check if we are done with shifting in r_Binary vector
+        s_CHECK_SHIFT_INDEX :
+          begin
+            if (r_Loop_Count == INPUT_WIDTH-1)
+              begin
+                r_Loop_Count <= 0;
+                r_SM_Main    <= s_BCD_DONE;
+              end
+            else
+              begin
+                r_Loop_Count <= r_Loop_Count + 1;
+                r_SM_Main    <= s_ADD;
+              end
+          end
+                 
+  
+        // Break down each BCD Digit individually.  Check them one-by-one to
+        // see if they are greater than 4.  If they are, increment by 3.
+        // Put the result back into r_BCD Vector.  
+        s_ADD :
+          begin
+            if (w_BCD_Digit > 4)
+              begin                                     
+                r_BCD[(r_Digit_Index*4)+:4] <= w_BCD_Digit + 3;  
+              end
+             
+            r_SM_Main <= s_CHECK_DIGIT_INDEX; 
+          end       
+         
+         
+        // Check if we are done incrementing all of the BCD Digits
+        s_CHECK_DIGIT_INDEX :
+          begin
+            if (r_Digit_Index == DECIMAL_DIGITS-1)
+              begin
+                r_Digit_Index <= 0;
+                r_SM_Main     <= s_SHIFT;
+              end
+            else
+              begin
+                r_Digit_Index <= r_Digit_Index + 1;
+                r_SM_Main     <= s_ADD;
+              end
+          end
+         
+  
+  
+        s_BCD_DONE :
+          begin
+            r_DV      <= 1'b1;
+            r_SM_Main <= s_IDLE;
+          end
+         
+         
+        default :
+          r_SM_Main <= s_IDLE;
+            
+      endcase
+    end // always @ (posedge i_Clock)  
+ 
+   
+  assign w_BCD_Digit = r_BCD[r_Digit_Index*4 +: 4];
+       
+  assign o_BCD = r_BCD;
+  assign o_DV  = r_DV;
+      
+endmodule // Binary_to_BCD
