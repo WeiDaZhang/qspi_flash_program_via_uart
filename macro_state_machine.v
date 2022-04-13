@@ -333,6 +333,11 @@ always @(posedge clk)
             else if(uart_macro_states_done)
                states <= Qst4kFl;
 
+            if(uart_macro_states_done)
+            begin
+                addr_reg = start_addr_reg;
+                sec4kB_len_cnt = sec4kB_len_reg;
+            end
             macro_states_valid = 0;
          end
          Qst4kFl : begin
@@ -344,9 +349,7 @@ always @(posedge clk)
             macro_states = BuffUART;
             macro_states_valid = 1;
             rx_cnt = Sect4kBCnt;
-            addr_reg = start_addr_reg;
             pg_cnt = 32'h1 << (Sect4kBWidth - PgByteWidth);
-            sec4kB_len_cnt = sec4kB_len_reg;
             SecRcvAck = 0;
          end
          WtQ4kFlEnd : begin
@@ -354,7 +357,7 @@ always @(posedge clk)
                states <= WtQ4kFlEnd;
             else if(~buff_prog_empty)
                 states = SetFlashWrPg;
-            else if(pg_cnt == 1 && SecRcvAck)
+            else if(pg_cnt == 0 && SecRcvAck)
                 states = SetAck;
 
             if(uart_macro_states_done)

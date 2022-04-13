@@ -425,7 +425,6 @@ always @(posedge clk)
                 states <= WtBCD;
 
             bcd_start = 1;
-            rx_cnt_reg = 0;
          end
          WtBCD : begin
             if(bcd_dv)
@@ -435,6 +434,7 @@ always @(posedge clk)
 
             bcd_reg = o_bcd;
             bcd_start = 0;
+            rx_cnt_reg = 0;
          end
          BCD2ASCII : begin
             if (0)
