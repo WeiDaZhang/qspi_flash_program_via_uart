@@ -13,8 +13,7 @@ module macro_state_machine
     input                   buff_prog_empty,
     input [31:0]            rx_num,
     output reg [15:0]       rx_cnt,
-    output reg [31:0]       addr_reg,
-    output                  pg_cnt
+    output reg [31:0]       addr_reg
 );
 
 reg [31:0]       data_len_reg;

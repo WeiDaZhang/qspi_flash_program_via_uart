@@ -40,6 +40,8 @@ wire            USRCCLKO;
 reg             rst;
 reg     [28:0]  one_shot_cnt;
 reg             one_shot;
+reg     [24:0]  led_cnt;
+
 wire    [4:0]   button_out;
 
 wire            spi_load;
@@ -251,7 +253,7 @@ ila_0 ila_0_inst (
 	.probe2({start_addr[31:0], spi_addr[31:0]}), // input wire [63:0]  probe2 
 	.probe3(spi_data), // input wire [63:0]  probe3 
 	.probe4({rx_dv, rx_byte, tx_dv, tx_done, tx_active, tx_byte}), // input wire [19:0]  probe4 
-	.probe5({buff_empty, buff_full, buff_prog_empty, macro_states, macro_states_valid, flash_macro_states_done, uart_macro_states_done, rx_num}) // input wire [41:0]  probe5
+	.probe5({buff_empty, led_cnt[3], buff_prog_empty, macro_states, macro_states_valid, flash_macro_states_done, uart_macro_states_done, rx_num}) // input wire [41:0]  probe5
 );
 
 always@(posedge clk)
@@ -290,4 +292,12 @@ begin
         one_shot = 0;
     end
 end
+
+always@(posedge clk)
+begin
+    led_cnt = led_cnt + 1;
+end
+
+assign LED = led_cnt[24];
+
 endmodule
