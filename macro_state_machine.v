@@ -415,7 +415,7 @@ always @(posedge clk)
             else if (~uart_macro_states_done)
                states <= WtSSetAck;
             else if(uart_macro_states_done && sec4kB_len_cnt == 0)
-               states <= IDLE;
+               states <= SetMenu;
             else if(uart_macro_states_done)
                states <= Qst4kFl;
 

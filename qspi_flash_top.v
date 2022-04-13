@@ -256,7 +256,7 @@ ila_0 ila_0_inst (
 
 always@(posedge clk)
 begin
-    rst = ~EOS;
+    rst = ~EOS || |button_out;
 end
 
 always@(posedge clk)
