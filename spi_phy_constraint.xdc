@@ -12,7 +12,8 @@ set_property PACKAGE_PIN AF8 [get_ports {BUTTON_IN[2]}]
 set_property PACKAGE_PIN AF9 [get_ports {BUTTON_IN[3]}]
 set_property PACKAGE_PIN AE8 [get_ports {BUTTON_IN[4]}]
 
-set_property PACKAGE_PIN R23 [get_ports LED]		#LED Location changed to LED6 for distinguish with "Update Image"
+#LED Location changed to LED6 for distinguish with "Update Image"
+set_property PACKAGE_PIN R23 [get_ports LED]
 set_property IOSTANDARD LVCMOS18 [get_ports LED]
 
 set_property PACKAGE_PIN K26 [get_ports UART_TX]
