@@ -2,7 +2,7 @@ import time
 import os
 import serial
 def write_to_uart():
-    s = serial.Serial(port="COM5", baudrate=115200, bytesize=8, timeout=0.1, stopbits=serial.STOPBITS_ONE)
+    s = serial.Serial(port="/dev/ttyUSB1", baudrate=115200, bytesize=8, timeout=0.1, stopbits=serial.STOPBITS_ONE)
     res = b'';
     while 1:
         if s.in_waiting > 0:
