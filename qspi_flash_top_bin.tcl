@@ -1,1 +1,0 @@
-write_cfgmem -force -format BIN -size 32 -interface SPIx4 -loadbit "up 0x00000000 qspi_flash_top.bit" qspi_flash_top.bin
